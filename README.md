@@ -12,6 +12,7 @@
   <a href="https://flutter.dev"><img alt="Flutter" src="https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white"></a>
   <a href="https://dart.dev"><img alt="Dart" src="https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white"></a>
   <a href="https://supabase.com"><img alt="Supabase" src="https://img.shields.io/badge/Supabase-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white"></a>
+  <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/emberrenewed/find/flutter.yml?branch=main&style=for-the-badge&label=CI">
   <img alt="RTL-first" src="https://img.shields.io/badge/RTL--first-Kurdish%20Sorani-0F766E?style=for-the-badge">
 </p>
 
@@ -102,7 +103,7 @@ docs/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/emberrenewed/-.git find
+git clone https://github.com/emberrenewed/find.git
 cd find
 ```
 
@@ -197,6 +198,13 @@ This project intentionally keeps secrets out of version control:
 - `.env` is ignored
 - build output is ignored
 - Android local machine settings are ignored
+
+## Project health
+
+- Continuous integration runs Flutter formatting checks, static analysis, and tests on every push and pull request.
+- Contribution guidance lives in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+- Security reporting guidance lives in [`SECURITY.md`](SECURITY.md).
+- Release notes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
