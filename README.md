@@ -204,6 +204,7 @@ This project intentionally keeps secrets out of version control:
 - Continuous integration runs Flutter formatting checks, static analysis, and tests on every push and pull request.
 - Contribution guidance lives in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - Security reporting guidance lives in [`SECURITY.md`](SECURITY.md).
+- Community expectations live in [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
 - Release notes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
