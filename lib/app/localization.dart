@@ -1,0 +1,57 @@
+class Ku {
+  static const appName = 'Find';
+  static const slogan = 'دۆزینەوەی شتە ونبووەکان بە ئاسانی';
+  static const welcomeTitle = 'بەخێربێیت بۆ Find';
+  static const welcomeBody =
+      'ئەپێکی گشتی بۆ دۆزینەوەی شتە ونبوو، دزراو، یان دۆزراوەکان.';
+  static const githubLogin = 'چوونەژوورەوە بە GitHub';
+  static const home = 'سەرەکی';
+  static const search = 'گەڕان';
+  static const add = 'زیادکردن';
+  static const notifications = 'ئاگادارییەکان';
+  static const messages = 'نامەکان';
+  static const profile = 'هەژمار';
+  static const save = 'پاشەکەوتکردن';
+  static const edit = 'دەستکاری';
+  static const delete = 'سڕینەوە';
+  static const confirm = 'پشتڕاستکردنەوە';
+  static const cancel = 'پاشگەزبوونەوە';
+  static const retry = 'دووبارە هەوڵدانەوە';
+  static const details = 'وردەکاری';
+  static const contactOwner = 'پەیوەندیکردن بە خاوەن';
+  static const sendMessage = 'ناردنی نامە';
+  static const filter = 'فلتەرکردن';
+  static const noItems = 'هیچ بابەتێک نەدۆزرایەوە';
+  static const requiredFields = 'تکایە هەموو خانە پێویستەکان پڕبکەرەوە';
+  static const postCreated = 'بابەتەکەت بەسەرکەوتوویی زیادکرا';
+  static const genericError = 'هەڵەیەک ڕوویدا، تکایە دووبارە هەوڵبدەرەوە';
+  static const deleteConfirm = 'دڵنیایت لە سڕینەوە؟';
+  static const closedPost = 'ئەم بابەتە داخراوە';
+  static const addImage = 'تکایە وێنەیەک زیاد بکە';
+  static const selectLocation = 'شوێنەکەت دیاری بکە';
+  static const noInternet = 'پەیوەندی ئینتەرنێت بەردەست نییە';
+  static const setupMissing = 'زانیاری Supabase لە پەڕگەی .env دانەنراوە';
+  static const authError =
+      'چوونەژوورەوە سەرکەوتوو نەبوو، تکایە دووبارە هەوڵبدەرەوە';
+  static const notAllowed = 'ڕێگەپێدراو نیت';
+  static const loading = 'چاوەڕوان بە';
+  static const logout = 'چوونەدەرەوە';
+  static const report = 'ڕاپۆرتکردن';
+  static const share = 'هاوبەشکردن';
+  static const settings = 'ڕێکخستنەکان';
+  static const myPosts = 'بابەتەکانم';
+  static const savedPosts = 'پاشەکەوتکراوەکان';
+  static const about = 'دەربارەی ئێمە';
+  static const privacy = 'پاراستنی نهێنی';
+  static const terms = 'یاسا و مەرجەکان';
+  static const help = 'ڕێنمایی بەکارهێنان';
+  static const support = 'پەیوەندی بە پشتگیری';
+  static const faq = 'پرسیارە دووبارەکان';
+  static const admin = 'پەڕەی بەڕێوەبەر';
+  static const adminDashboard = 'داشبۆردی بەڕێوەبەر';
+  static const adminPosts = 'پشتڕاستکردنەوەی بابەت';
+  static const adminReports = 'ڕاپۆرتەکان';
+  static const adminUsers = 'بەکارهێنەران';
+  static const adminStats = 'ئامارەکان';
+  static const adminNotice = 'ئاگادارکردنەوەی گشتی';
+}
