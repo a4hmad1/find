@@ -1,3 +1,4 @@
+import '../../core/utils/json.dart';
 import 'profile_model.dart';
 
 class ConversationModel {
@@ -11,6 +12,18 @@ class ConversationModel {
     this.createdAt,
   });
 
+  factory ConversationModel.fromJson(Map<String, dynamic> json) {
+    return ConversationModel(
+      id: json.asString('id'),
+      postId: json.asString('post_id'),
+      userOneId: json.asString('user_one_id'),
+      userTwoId: json.asString('user_two_id'),
+      lastMessage: json.asStringOrNull('last_message'),
+      lastMessageAt: json.asDateOrNull('last_message_at'),
+      createdAt: json.asDateOrNull('created_at'),
+    );
+  }
+
   final String id;
   final String postId;
   final String userOneId;
@@ -19,23 +32,13 @@ class ConversationModel {
   final DateTime? lastMessageAt;
   final DateTime? createdAt;
 
-  factory ConversationModel.fromJson(Map<String, dynamic> json) {
-    return ConversationModel(
-      id: json['id']?.toString() ?? '',
-      postId: json['post_id']?.toString() ?? '',
-      userOneId: json['user_one_id']?.toString() ?? '',
-      userTwoId: json['user_two_id']?.toString() ?? '',
-      lastMessage: json['last_message']?.toString(),
-      lastMessageAt: DateTime.tryParse(
-        json['last_message_at']?.toString() ?? '',
-      ),
-      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
-    );
-  }
-
+  /// The participant who is not [currentUserId].
   String otherUserId(String currentUserId) {
     return userOneId == currentUserId ? userTwoId : userOneId;
   }
+
+  bool includes(String profileId) =>
+      userOneId == profileId || userTwoId == profileId;
 }
 
 class MessageModel {
@@ -52,6 +55,24 @@ class MessageModel {
     this.sender,
   });
 
+  factory MessageModel.fromJson(Map<String, dynamic> json) {
+    final profileJson = json['profiles'] ?? json['sender'];
+    return MessageModel(
+      id: json.asString('id'),
+      conversationId: json.asString('conversation_id'),
+      senderId: json.asString('sender_id'),
+      receiverId: json.asString('receiver_id'),
+      postId: json.asString('post_id'),
+      message: json.asString('message'),
+      imageUrl: json.asStringOrNull('image_url'),
+      isRead: json.asBool('is_read'),
+      createdAt: json.asDateOrNull('created_at'),
+      sender: profileJson is Map
+          ? ProfileModel.fromJson(Map<String, dynamic>.from(profileJson))
+          : null,
+    );
+  }
+
   final String id;
   final String conversationId;
   final String senderId;
@@ -63,21 +84,6 @@ class MessageModel {
   final DateTime? createdAt;
   final ProfileModel? sender;
 
-  factory MessageModel.fromJson(Map<String, dynamic> json) {
-    final profileJson = json['profiles'] ?? json['sender'];
-    return MessageModel(
-      id: json['id']?.toString() ?? '',
-      conversationId: json['conversation_id']?.toString() ?? '',
-      senderId: json['sender_id']?.toString() ?? '',
-      receiverId: json['receiver_id']?.toString() ?? '',
-      postId: json['post_id']?.toString() ?? '',
-      message: json['message']?.toString() ?? '',
-      imageUrl: json['image_url']?.toString(),
-      isRead: json['is_read'] == true,
-      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
-      sender: profileJson is Map
-          ? ProfileModel.fromJson(Map<String, dynamic>.from(profileJson))
-          : null,
-    );
-  }
+  bool get hasImage => (imageUrl ?? '').isNotEmpty;
+  bool get hasText => message.isNotEmpty;
 }

@@ -1,4 +1,6 @@
-import '../../core/constants/app_constants.dart';
+import '../../core/domain/post_status.dart';
+import '../../core/domain/post_type.dart';
+import '../../core/utils/json.dart';
 import 'profile_model.dart';
 
 class PostImageModel {
@@ -10,21 +12,21 @@ class PostImageModel {
     required this.sortOrder,
   });
 
+  factory PostImageModel.fromJson(Map<String, dynamic> json) {
+    return PostImageModel(
+      id: json.asString('id'),
+      postId: json.asString('post_id'),
+      imageUrl: json.asString('image_url'),
+      storagePath: json.asString('storage_path'),
+      sortOrder: json.asInt('sort_order'),
+    );
+  }
+
   final String id;
   final String postId;
   final String imageUrl;
   final String storagePath;
   final int sortOrder;
-
-  factory PostImageModel.fromJson(Map<String, dynamic> json) {
-    return PostImageModel(
-      id: json['id']?.toString() ?? '',
-      postId: json['post_id']?.toString() ?? '',
-      imageUrl: json['image_url']?.toString() ?? '',
-      storagePath: json['storage_path']?.toString() ?? '',
-      sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
-    );
-  }
 }
 
 class PostModel {
@@ -54,13 +56,45 @@ class PostModel {
     this.profile,
   });
 
+  factory PostModel.fromJson(Map<String, dynamic> json) {
+    final profileJson = json['profiles'] ?? json['profile'];
+    return PostModel(
+      id: json.asString('id'),
+      userId: json.asString('user_id'),
+      title: json.asString('title'),
+      description: json.asString('description'),
+      postType: PostType.tryParse(json['post_type']) ?? PostType.found,
+      itemType: json.asString('item_type'),
+      status: PostStatus.tryParse(json['status']) ?? PostStatus.pending,
+      city: json.asString('city'),
+      area: json.asString('area'),
+      locationText: json.asString('location_text'),
+      latitude: json.asDoubleOrNull('latitude'),
+      longitude: json.asDoubleOrNull('longitude'),
+      eventDate: json.asDateOrNull('event_date'),
+      contactPhone: json.asStringOrNull('contact_phone'),
+      contactEmail: json.asStringOrNull('contact_email'),
+      allowContactPublic: json.asBool('allow_contact_public'),
+      needsVerification: json.asBool('needs_verification', ifAbsent: true),
+      viewsCount: json.asInt('views_count'),
+      isUrgent: json.asBool('is_urgent'),
+      createdAt: json.asDateOrNull('created_at'),
+      updatedAt: json.asDateOrNull('updated_at'),
+      images: json.asModelList('post_images', PostImageModel.fromJson)
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)),
+      profile: profileJson is Map
+          ? ProfileModel.fromJson(Map<String, dynamic>.from(profileJson))
+          : null,
+    );
+  }
+
   final String id;
   final String userId;
   final String title;
   final String description;
-  final String postType;
+  final PostType postType;
   final String itemType;
-  final String status;
+  final PostStatus status;
   final String city;
   final String area;
   final String locationText;
@@ -78,52 +112,19 @@ class PostModel {
   final List<PostImageModel> images;
   final ProfileModel? profile;
 
-  String get postTypeLabel => DbValues.postTypeLabels[postType] ?? postType;
-  String get statusLabel => DbValues.statusLabels[status] ?? status;
+  String get postTypeLabel => postType.label;
+  String get statusLabel => status.label;
   String? get coverUrl => images.isEmpty ? null : images.first.imageUrl;
-  bool get isClosed => status == DbValues.closed || status == DbValues.returned;
+  bool get isClosed => status.isTerminal;
 
-  factory PostModel.fromJson(Map<String, dynamic> json) {
-    final rawImages = json['post_images'];
-    final parsedImages = rawImages is List
-        ? rawImages
-              .whereType<Map>()
-              .map(
-                (item) =>
-                    PostImageModel.fromJson(Map<String, dynamic>.from(item)),
-              )
-              .toList()
-        : <PostImageModel>[];
+  /// The timestamp lists are sorted by. Falls back through creation date and
+  /// event date so posts with partial data still order deterministically.
+  DateTime get sortDate =>
+      createdAt ?? eventDate ?? DateTime.fromMillisecondsSinceEpoch(0);
 
-    final profileJson = json['profiles'] ?? json['profile'];
-    return PostModel(
-      id: json['id']?.toString() ?? '',
-      userId: json['user_id']?.toString() ?? '',
-      title: json['title']?.toString() ?? '',
-      description: json['description']?.toString() ?? '',
-      postType: json['post_type']?.toString() ?? DbValues.found,
-      itemType: json['item_type']?.toString() ?? '',
-      status: json['status']?.toString() ?? DbValues.pending,
-      city: json['city']?.toString() ?? '',
-      area: json['area']?.toString() ?? '',
-      locationText: json['location_text']?.toString() ?? '',
-      latitude: (json['latitude'] as num?)?.toDouble(),
-      longitude: (json['longitude'] as num?)?.toDouble(),
-      eventDate: DateTime.tryParse(json['event_date']?.toString() ?? ''),
-      contactPhone: json['contact_phone']?.toString(),
-      contactEmail: json['contact_email']?.toString(),
-      allowContactPublic: json['allow_contact_public'] == true,
-      needsVerification: json['needs_verification'] != false,
-      viewsCount: (json['views_count'] as num?)?.toInt() ?? 0,
-      isUrgent: json['is_urgent'] == true,
-      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
-      updatedAt: DateTime.tryParse(json['updated_at']?.toString() ?? ''),
-      images: parsedImages,
-      profile: profileJson is Map
-          ? ProfileModel.fromJson(Map<String, dynamic>.from(profileJson))
-          : null,
-    );
-  }
+  /// The profile id of the owner, preferring the joined profile when the query
+  /// included one.
+  String get ownerId => profile?.id ?? userId;
 }
 
 class CreatePostInput {
@@ -146,7 +147,7 @@ class CreatePostInput {
 
   final String title;
   final String description;
-  final String postType;
+  final PostType postType;
   final String itemType;
   final String city;
   final String area;
@@ -164,15 +165,15 @@ class CreatePostInput {
       'user_id': userId,
       'title': title,
       'description': description,
-      'post_type': postType,
+      'post_type': postType.wire,
       'item_type': itemType,
-      'status': DbValues.pending,
+      'status': PostStatus.pending.wire,
       'city': city,
       'area': area,
       'location_text': locationText,
       'latitude': latitude,
       'longitude': longitude,
-      'event_date': eventDate.toIso8601String().split('T').first,
+      'event_date': eventDate.toDateOnlyString(),
       'contact_phone': contactPhone,
       'contact_email': contactEmail,
       'allow_contact_public': allowContactPublic,

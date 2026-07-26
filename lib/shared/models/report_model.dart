@@ -1,3 +1,6 @@
+import '../../core/domain/notification_type.dart';
+import '../../core/utils/json.dart';
+
 class ReportModel {
   const ReportModel({
     required this.id,
@@ -10,25 +13,27 @@ class ReportModel {
     this.createdAt,
   });
 
+  factory ReportModel.fromJson(Map<String, dynamic> json) {
+    return ReportModel(
+      id: json.asString('id'),
+      reporterId: json.asString('reporter_id'),
+      postId: json.asStringOrNull('post_id'),
+      reportedUserId: json.asStringOrNull('reported_user_id'),
+      reason: json.asString('reason'),
+      description: json.asStringOrNull('description'),
+      status: ReportStatus.parse(json['status']),
+      createdAt: json.asDateOrNull('created_at'),
+    );
+  }
+
   final String id;
   final String reporterId;
   final String? postId;
   final String? reportedUserId;
   final String reason;
   final String? description;
-  final String status;
+  final ReportStatus status;
   final DateTime? createdAt;
 
-  factory ReportModel.fromJson(Map<String, dynamic> json) {
-    return ReportModel(
-      id: json['id']?.toString() ?? '',
-      reporterId: json['reporter_id']?.toString() ?? '',
-      postId: json['post_id']?.toString(),
-      reportedUserId: json['reported_user_id']?.toString(),
-      reason: json['reason']?.toString() ?? '',
-      description: json['description']?.toString(),
-      status: json['status']?.toString() ?? 'pending',
-      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
-    );
-  }
+  bool get isOpen => status == ReportStatus.pending;
 }

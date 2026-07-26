@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../../app/localization.dart';
 import '../../../app/providers.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/domain/post_type.dart';
+import '../../../core/errors/app_failure.dart';
 import '../../../core/utils/date_formatters.dart';
 import '../../../core/utils/kurdish_date_picker.dart';
 import '../../../core/utils/validators.dart';
@@ -27,14 +29,19 @@ class _AddPostScreenState extends ConsumerState<AddPostScreen> {
   final _location = TextEditingController();
   final _phone = TextEditingController();
   final _email = TextEditingController();
-  String? _postType;
+
+  PostType? _postType;
   String? _itemType;
   String? _city;
   DateTime _eventDate = DateTime.now();
   bool _needsVerification = true;
   bool _allowPublicContact = false;
-  bool _loading = false;
-  List<XFile> _images = [];
+  bool _submitting = false;
+  List<XFile> _images = const [];
+
+  /// Set when a required selection is missing, so the error appears next to the
+  /// control rather than only in a snack bar the user has to remember.
+  bool _showSelectionErrors = false;
 
   @override
   void dispose() {
@@ -54,30 +61,29 @@ class _AddPostScreenState extends ConsumerState<AddPostScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 1)),
     );
-    if (result != null) setState(() => _eventDate = result);
+    if (result == null || !mounted) return;
+    setState(() => _eventDate = result);
   }
 
   Future<void> _submit() async {
-    final valid = _formKey.currentState?.validate() ?? false;
     final signedIn = ref.read(signedInProvider);
-    if (!valid ||
-        _postType == null ||
-        _itemType == null ||
-        _city == null ||
-        (signedIn && _images.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            signedIn && _images.isEmpty
-                ? 'تکایە لانیکەم یەک وێنە زیاد بکە'
-                : Ku.requiredFields,
-          ),
-        ),
+    final formValid = _formKey.currentState?.validate() ?? false;
+    final selectionsValid =
+        _postType != null && _itemType != null && _city != null;
+    // Guests may post without a photo — a stock image stands in. Signed-in
+    // posts are public records, so at least one real photo is required.
+    final imagesValid = !signedIn || _images.isNotEmpty;
+
+    if (!formValid || !selectionsValid || !imagesValid) {
+      setState(() => _showSelectionErrors = true);
+      showMessageSnackBar(
+        context,
+        !imagesValid ? Ku.addImage : Ku.requiredFields,
       );
       return;
     }
 
-    setState(() => _loading = true);
+    setState(() => _submitting = true);
     try {
       final input = CreatePostInput(
         title: _title.text.trim(),
@@ -88,35 +94,41 @@ class _AddPostScreenState extends ConsumerState<AddPostScreen> {
         area: _area.text.trim(),
         locationText: _location.text.trim(),
         eventDate: _eventDate,
-        contactPhone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
-        contactEmail: _email.text.trim().isEmpty ? null : _email.text.trim(),
+        contactPhone: _phone.text.trim().nullIfEmpty,
+        contactEmail: _email.text.trim().nullIfEmpty,
         allowContactPublic: _allowPublicContact,
         needsVerification: _needsVerification,
       );
+
       final post = signedIn
           ? await ref.read(postsRepositoryProvider).createPost(input, _images)
           : await ref
                 .read(localPostsProvider.notifier)
                 .addGuestPost(input, _images);
-      ref.invalidate(recentPostsProvider);
-      ref.invalidate(postStatsProvider);
+
+      ref
+        ..invalidate(recentPostsProvider)
+        ..invalidate(urgentPostsProvider)
+        ..invalidate(postStatsProvider)
+        ..invalidate(myPostsProvider);
+
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text(Ku.postCreated)));
+      showMessageSnackBar(context, Ku.postCreated);
       context.go('${AppRoutes.post}/${post.id}');
-    } catch (_) {
+    } on AppFailure catch (failure) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text(Ku.genericError)));
+      // Report the actual reason — a daily-quota rejection and a dropped
+      // connection previously produced the same opaque message.
+      showFailureSnackBar(context, failure, onRetry: _submit);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final signedIn = ref.watch(signedInProvider);
+
     return AppScaffold(
       title: 'زیادکردنی بابەتی نوێ',
       child: Form(
@@ -124,23 +136,32 @@ class _AddPostScreenState extends ConsumerState<AddPostScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const OfficialHeader(
+            OfficialHeader(
               title: 'زانیاری شتەکە بنووسە',
-              subtitle:
-                  'دەتوانیت بەبێ چوونەژوورەوە بابەتی نموونەیی زیاد بکەیت.',
+              subtitle: signedIn
+                  ? 'بابەتەکەت پاش پشتڕاستکردنەوەی بەڕێوەبەر بڵاو دەبێتەوە.'
+                  : 'دەتوانیت بەبێ چوونەژوورەوە بابەتی نموونەیی زیاد بکەیت.',
             ),
             const SizedBox(height: 18),
+            if (!signedIn) ...[
+              const InfoBanner(
+                message:
+                    'لە دۆخی میواندا بابەتەکە تەنها لەسەر ئەم ئامێرە دەمێنێتەوە و بڵاو ناکرێتەوە.',
+              ),
+              const SizedBox(height: 14),
+            ],
             TextFormField(
               controller: _title,
               validator: Validators.title,
+              textInputAction: TextInputAction.next,
               decoration: const InputDecoration(labelText: 'ناونیشانی بابەت'),
             ),
-            const SizedBox(height: 12),
-            Text(
-              'جۆری بابەت',
-              style: Theme.of(
-                context,
-              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+            const SizedBox(height: 16),
+            _FieldLabel(
+              label: 'جۆری بابەت',
+              error: _showSelectionErrors && _postType == null
+                  ? 'تکایە جۆری بابەت دیاری بکە'
+                  : null,
             ),
             const SizedBox(height: 8),
             PostTypeSelector(
@@ -152,6 +173,8 @@ class _AddPostScreenState extends ConsumerState<AddPostScreen> {
               value: _itemType,
               onChanged: (value) => setState(() => _itemType = value),
             ),
+            if (_showSelectionErrors && _itemType == null)
+              const _FieldError('تکایە جۆری شت دیاری بکە'),
             const SizedBox(height: 12),
             TextFormField(
               controller: _description,
@@ -165,14 +188,18 @@ class _AddPostScreenState extends ConsumerState<AddPostScreen> {
               value: _city,
               onChanged: (value) => setState(() => _city = value),
             ),
+            if (_showSelectionErrors && _city == null)
+              const _FieldError('تکایە شار دیاری بکە'),
             const SizedBox(height: 12),
             TextFormField(
               controller: _area,
+              textInputAction: TextInputAction.next,
               decoration: const InputDecoration(labelText: 'ناوچە'),
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _location,
+              textInputAction: TextInputAction.next,
               decoration: const InputDecoration(labelText: 'شوێن'),
             ),
             const SizedBox(height: 12),
@@ -228,7 +255,9 @@ class _AddPostScreenState extends ConsumerState<AddPostScreen> {
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             Text(
-              'لە دۆخی میواندا ئەگەر وێنە زیاد نەکەیت، وێنەی نموونەیی دادەنرێت.',
+              signedIn
+                  ? 'لانیکەم یەک وێنە پێویستە، زۆرترین ${AppLimits.maxPostImages} وێنە.'
+                  : 'لە دۆخی میواندا ئەگەر وێنە زیاد نەکەیت، وێنەی نموونەیی دادەنرێت.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppColors.muted,
                 height: 1.6,
@@ -237,13 +266,14 @@ class _AddPostScreenState extends ConsumerState<AddPostScreen> {
             const SizedBox(height: 10),
             ImagePickerGrid(
               images: _images,
+              enabled: !_submitting,
               onChanged: (images) => setState(() => _images = images),
             ),
             const SizedBox(height: 22),
             PrimaryButton(
               label: 'بابەتەکە بنێرە',
               icon: Icons.send_rounded,
-              loading: _loading,
+              loading: _submitting,
               onPressed: _submit,
             ),
           ],
@@ -251,4 +281,52 @@ class _AddPostScreenState extends ConsumerState<AddPostScreen> {
       ),
     );
   }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel({required this.label, this.error});
+
+  final String label;
+  final String? error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        if (error case final message?) _FieldError(message),
+      ],
+    );
+  }
+}
+
+class _FieldError extends StatelessWidget {
+  const _FieldError(this.message);
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Text(
+        message,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.error,
+        ),
+      ),
+    );
+  }
+}
+
+extension on String {
+  /// Treats a blank optional field as absent rather than storing an empty
+  /// string, so `allow_contact_public` never advertises an empty phone number.
+  String? get nullIfEmpty => isEmpty ? null : this;
 }

@@ -1,3 +1,6 @@
+import '../../core/domain/user_role.dart';
+import '../../core/utils/json.dart';
+
 class ProfileModel {
   const ProfileModel({
     required this.id,
@@ -13,35 +16,40 @@ class ProfileModel {
     this.updatedAt,
   });
 
+  factory ProfileModel.fromJson(Map<String, dynamic> json) {
+    return ProfileModel(
+      id: json.asString('id'),
+      authUserId: json.asString('auth_user_id'),
+      githubId: json.asString('github_id'),
+      githubUsername: json.asString('github_username'),
+      displayName: json.asString('display_name'),
+      avatarUrl: json.asString('avatar_url'),
+      email: json.asStringOrNull('email'),
+      role: UserRole.parse(json['role']),
+      isBanned: json.asBool('is_banned'),
+      createdAt: json.asDateOrNull('created_at'),
+      updatedAt: json.asDateOrNull('updated_at'),
+    );
+  }
+
   final String id;
   final String authUserId;
   final String githubId;
   final String githubUsername;
   final String displayName;
   final String avatarUrl;
-  final String role;
+  final UserRole role;
   final bool isBanned;
   final String? email;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
-  bool get isAdmin => role == 'admin' || role == 'moderator';
+  bool get isAdmin => role.canModerate;
 
-  factory ProfileModel.fromJson(Map<String, dynamic> json) {
-    return ProfileModel(
-      id: json['id']?.toString() ?? '',
-      authUserId: json['auth_user_id']?.toString() ?? '',
-      githubId: json['github_id']?.toString() ?? '',
-      githubUsername: json['github_username']?.toString() ?? '',
-      displayName: json['display_name']?.toString() ?? '',
-      avatarUrl: json['avatar_url']?.toString() ?? '',
-      email: json['email']?.toString(),
-      role: json['role']?.toString() ?? 'user',
-      isBanned: json['is_banned'] == true,
-      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
-      updatedAt: DateTime.tryParse(json['updated_at']?.toString() ?? ''),
-    );
-  }
+  /// A non-empty name to render, since `display_name` can be blank for GitHub
+  /// accounts that never set one.
+  String get resolvedDisplayName =>
+      displayName.isNotEmpty ? displayName : githubUsername;
 
   Map<String, dynamic> toJson() {
     return {
@@ -52,7 +60,7 @@ class ProfileModel {
       'display_name': displayName,
       'avatar_url': avatarUrl,
       'email': email,
-      'role': role,
+      'role': role.wire,
       'is_banned': isBanned,
     };
   }

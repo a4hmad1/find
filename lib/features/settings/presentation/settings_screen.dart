@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/localization.dart';
 import '../../../app/providers.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/errors/app_failure.dart';
 import '../../../shared/widgets/app_widgets.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -15,31 +16,39 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  bool _notifications = true;
-  bool _privateContact = true;
+  bool _deleting = false;
 
   Future<void> _deleteAccount() async {
-    if (!ref.read(supabaseConfiguredProvider) ||
-        ref.read(supabaseClientProvider).auth.currentUser == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('لە دۆخی میواندا نییە')));
-      return;
-    }
-    final ok = await showConfirmationDialog(
+    final confirmed = await showConfirmationDialog(
       context: context,
       title: 'سڕینەوەی هەژمار',
-      message: 'هەژمارەکەت ڕادەگیرێت و ناتوانیت بابەت یان نامە بنێریت.',
+      // Says what actually happens: this is a deactivation, not a hard delete,
+      // because posts and threads other people rely on stay in place.
+      message:
+          'هەژمارەکەت ڕادەگیرێت و دەردەچیت. ناتوانیت بابەت یان نامە بنێریت، بەڵام بابەتە پێشووەکانت لە سیستەم دەمێننەوە.',
+      confirmLabel: Ku.delete,
+      destructive: true,
     );
-    if (!ok) return;
-    await ref.read(profileRepositoryProvider).deleteAccount();
-    if (mounted) context.go(AppRoutes.home);
+    if (!confirmed || !mounted) return;
+
+    setState(() => _deleting = true);
+    try {
+      await ref.read(profileRepositoryProvider).deleteAccount();
+      if (!mounted) return;
+      context.go(AppRoutes.home);
+    } on AppFailure catch (failure) {
+      if (!mounted) return;
+      showFailureSnackBar(context, failure);
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final signedIn = ref.watch(signedInProvider);
+
     return AppScaffold(
       title: Ku.settings,
       child: Column(
@@ -56,6 +65,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               context,
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
+          const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             child: SegmentedButton<ThemeMode>(
@@ -65,35 +75,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ButtonSegment(value: ThemeMode.system, label: Text('سیستەم')),
               ],
               selected: {themeMode},
-              onSelectionChanged: (values) {
-                ref.read(themeModeProvider.notifier).setMode(values.first);
-              },
+              onSelectionChanged: (values) =>
+                  ref.read(themeModeProvider.notifier).setMode(values.first),
             ),
           ),
           const Divider(height: 28),
-          SwitchListTile(
-            value: _notifications,
-            onChanged: (value) => setState(() => _notifications = value),
-            title: const Text('ئاگادارییەکان'),
-            subtitle: const Text('نامە و گۆڕانی دۆخی بابەت وەربگرە.'),
-          ),
-          SwitchListTile(
-            value: _privateContact,
-            onChanged: (value) => setState(() => _privateContact = value),
-            title: const Text('پاراستنی زانیاری پەیوەندی'),
-            subtitle: const Text(
-              'زانیاری پەیوەندی تەنها بە ڕێگەپێدانت پیشان بدرێت.',
-            ),
-          ),
-          const Divider(height: 28),
+          // The notification and contact-privacy switches that used to sit here
+          // were pure local state: toggling them changed nothing on the server
+          // and reset on restart. They are gone rather than left as decoration;
+          // contact visibility is already a real, persisted per-post setting on
+          // the add-post screen.
           _SettingsTile(title: Ku.privacy, route: AppRoutes.privacy),
           _SettingsTile(title: Ku.terms, route: AppRoutes.terms),
           _SettingsTile(title: Ku.help, route: AppRoutes.help),
+          _SettingsTile(title: Ku.about, route: AppRoutes.about),
           if (signedIn) ...[
-            const SizedBox(height: 18),
+            const Divider(height: 28),
             SecondaryButton(
               label: 'سڕینەوەی هەژمار',
               icon: Icons.delete_forever_rounded,
+              loading: _deleting,
               onPressed: _deleteAccount,
             ),
           ],
@@ -111,11 +112,6 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-      trailing: const Icon(Icons.chevron_left_rounded),
-      onTap: () => context.push(route),
-    );
+    return MenuTile(title: title, onTap: () => context.push(route));
   }
 }
