@@ -1,3 +1,6 @@
+import '../../core/domain/notification_type.dart';
+import '../../core/utils/json.dart';
+
 class AppNotificationModel {
   const AppNotificationModel({
     required this.id,
@@ -10,25 +13,31 @@ class AppNotificationModel {
     this.createdAt,
   });
 
+  factory AppNotificationModel.fromJson(Map<String, dynamic> json) {
+    return AppNotificationModel(
+      id: json.asString('id'),
+      userId: json.asString('user_id'),
+      title: json.asString('title'),
+      body: json.asString('body'),
+      type: NotificationType.parse(json['type']),
+      relatedPostId: json.asStringOrNull('related_post_id'),
+      isRead: json.asBool('is_read'),
+      createdAt: json.asDateOrNull('created_at'),
+    );
+  }
+
   final String id;
   final String userId;
   final String title;
   final String body;
-  final String type;
+  final NotificationType type;
   final String? relatedPostId;
   final bool isRead;
   final DateTime? createdAt;
 
-  factory AppNotificationModel.fromJson(Map<String, dynamic> json) {
-    return AppNotificationModel(
-      id: json['id']?.toString() ?? '',
-      userId: json['user_id']?.toString() ?? '',
-      title: json['title']?.toString() ?? '',
-      body: json['body']?.toString() ?? '',
-      type: json['type']?.toString() ?? '',
-      relatedPostId: json['related_post_id']?.toString(),
-      isRead: json['is_read'] == true,
-      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
-    );
-  }
+  /// A title to render, falling back to the type's default when the row was
+  /// written without one.
+  String get resolvedTitle => title.isNotEmpty ? title : type.label;
+
+  bool get opensPost => relatedPostId != null && relatedPostId!.isNotEmpty;
 }

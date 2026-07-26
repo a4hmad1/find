@@ -5,58 +5,61 @@ import 'package:go_router/go_router.dart';
 import '../../../app/localization.dart';
 import '../../../app/providers.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/errors/app_failure.dart';
 import '../../../shared/models/post_model.dart';
 import '../../../shared/widgets/app_widgets.dart';
 
-class SavedPostsScreen extends ConsumerStatefulWidget {
+class SavedPostsScreen extends ConsumerWidget {
   const SavedPostsScreen({super.key});
 
-  @override
-  ConsumerState<SavedPostsScreen> createState() => _SavedPostsScreenState();
-}
-
-class _SavedPostsScreenState extends ConsumerState<SavedPostsScreen> {
-  late Future<List<PostModel>> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _canUseAccount()
-        ? ref.read(profileRepositoryProvider).savedPosts()
-        : Future.value(const <PostModel>[]);
-  }
-
-  bool _canUseAccount() {
-    if (!ref.read(supabaseConfiguredProvider)) return false;
-    return ref.read(supabaseClientProvider).auth.currentUser != null;
+  Future<void> _remove(
+    BuildContext context,
+    WidgetRef ref,
+    PostModel post,
+  ) async {
+    try {
+      await ref.read(profileRepositoryProvider).removeSavedPost(post.id);
+      ref.invalidate(savedPostsProvider);
+      if (!context.mounted) return;
+      showMessageSnackBar(context, 'لە پاشەکەوتکراوەکان لابرا');
+    } on AppFailure catch (failure) {
+      if (!context.mounted) return;
+      showFailureSnackBar(context, failure);
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
-    final signedIn = ref.watch(signedInProvider);
-    if (!signedIn) {
-      return AppScaffold(
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(signedInProvider)) {
+      return const AppScaffold(
         title: Ku.savedPosts,
         child: GuestModeView(
           title: Ku.savedPosts,
           message: 'پاشەکەوتکراوەکان لە دۆخی میواندا بەردەست نین.',
           icon: Icons.bookmark_border_rounded,
-          actionLabel: Ku.home,
-          onAction: () => context.go(AppRoutes.home),
         ),
       );
     }
 
+    final saved = ref.watch(savedPostsProvider);
+
     return AppScaffold(
       title: Ku.savedPosts,
-      child: FutureBuilder<List<PostModel>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const LoadingSkeleton(count: 4);
-          }
-          if (snapshot.hasError) return const ErrorView();
-          final posts = snapshot.data ?? [];
+      onRefresh: () async {
+        ref.invalidate(savedPostsProvider);
+        try {
+          await ref.read(savedPostsProvider.future);
+        } on Object {
+          // Rendered as an error state below.
+        }
+      },
+      child: saved.when(
+        loading: () => const LoadingSkeleton(count: 4),
+        error: (error, _) => ErrorView.failure(
+          AppFailure.from(error),
+          onRetry: () => ref.invalidate(savedPostsProvider),
+        ),
+        data: (posts) {
           if (posts.isEmpty) {
             return const EmptyState(
               title: 'هیچ بابەتێک پاشەکەوت نەکراوە',
@@ -65,17 +68,24 @@ class _SavedPostsScreenState extends ConsumerState<SavedPostsScreen> {
             );
           }
           return Column(
-            children: posts
-                .map(
-                  (post) => PostCard(
-                    post: post,
-                    onDetails: () =>
-                        context.push('${AppRoutes.post}/${post.id}'),
-                    onContact: () =>
-                        context.push('${AppRoutes.post}/${post.id}'),
+            children: [
+              for (final post in posts) ...[
+                PostCard(
+                  post: post,
+                  onDetails: () => context.push('${AppRoutes.post}/${post.id}'),
+                  onContact: () => context.push('${AppRoutes.post}/${post.id}'),
+                ),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton.icon(
+                    onPressed: () => _remove(context, ref, post),
+                    icon: const Icon(Icons.bookmark_remove_rounded, size: 18),
+                    label: const Text('لابردن'),
                   ),
-                )
-                .toList(),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ],
           );
         },
       ),

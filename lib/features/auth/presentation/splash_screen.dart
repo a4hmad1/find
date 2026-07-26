@@ -1,36 +1,40 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/localization.dart';
+import '../../../app/providers.dart';
 import '../../../core/constants/app_constants.dart';
 
-class SplashScreen extends StatefulWidget {
+/// Branded launch screen shown while the stored session is restored.
+///
+/// It now leaves when the auth state actually resolves rather than after a
+/// fixed 1.4 second timer, which used to move on before the session was known
+/// on a slow start and idle for no reason on a fast one.
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
+class _SplashScreenState extends ConsumerState<SplashScreen>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _scale;
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..forward();
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..forward();
-    _scale = CurvedAnimation(parent: _controller, curve: Curves.easeOutBack);
-    Timer(const Duration(milliseconds: 1400), _route);
-  }
+  late final Animation<double> _scale = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOutBack,
+  );
 
-  void _route() {
-    if (!mounted) return;
+  bool _navigated = false;
+
+  void _goHome() {
+    if (_navigated || !mounted) return;
+    _navigated = true;
     context.go(AppRoutes.home);
   }
 
@@ -43,9 +47,20 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    // Guest mode has nothing to restore, so leave as soon as the intro
+    // animation has had a moment to play.
+    if (!ref.watch(supabaseConfiguredProvider)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _goHome());
+    }
+
+    ref.listen(authUserProvider, (previous, next) {
+      if (next.isLoading) return;
+      _goHome();
+    });
+
     return Scaffold(
-      body: Container(
-        width: double.infinity,
+      body: DecoratedBox(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,

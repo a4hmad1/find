@@ -3,78 +3,117 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/localization.dart';
 import '../../../app/providers.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/errors/app_failure.dart';
 import '../../../shared/models/profile_model.dart';
 import '../../../shared/widgets/app_widgets.dart';
 
-class AdminUsersScreen extends ConsumerStatefulWidget {
+class AdminUsersScreen extends ConsumerWidget {
   const AdminUsersScreen({super.key});
 
-  @override
-  ConsumerState<AdminUsersScreen> createState() => _AdminUsersScreenState();
-}
+  Future<void> _setBanned(
+    BuildContext context,
+    WidgetRef ref,
+    ProfileModel user, {
+    required bool banned,
+  }) async {
+    // Banning is disruptive and easy to mis-tap in a long list, so confirm it.
+    if (banned) {
+      final confirmed = await showConfirmationDialog(
+        context: context,
+        title: 'ڕاگرتنی بەکارهێنەر',
+        message:
+            '${user.resolvedDisplayName} ناتوانێت بابەت یان نامە بنێرێت. دەتوانیت دواتر لایببەیت.',
+        confirmLabel: 'ڕاگرتن',
+        destructive: true,
+      );
+      if (!confirmed || !context.mounted) return;
+    }
 
-class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
-  late Future<List<ProfileModel>> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
+    try {
+      await ref.read(adminRepositoryProvider).banUser(user.id, banned: banned);
+      ref
+        ..invalidate(adminUsersProvider)
+        ..invalidate(adminStatsProvider);
+      if (!context.mounted) return;
+      showMessageSnackBar(
+        context,
+        banned ? 'بەکارهێنەر ڕاگیرا' : 'ڕاگرتنەکە لابرا',
+      );
+    } on AppFailure catch (failure) {
+      if (!context.mounted) return;
+      showFailureSnackBar(context, failure);
+    }
   }
 
-  void _load() {
-    _future = ref.read(adminRepositoryProvider).users();
-  }
-
-  Future<void> _ban(ProfileModel user, bool banned) async {
-    await ref.read(adminRepositoryProvider).banUser(user.id, banned);
-    setState(_load);
-  }
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final users = ref.watch(adminUsersProvider);
+
     return AppScaffold(
       title: Ku.adminUsers,
-      child: FutureBuilder<List<ProfileModel>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const LoadingSkeleton(count: 5);
-          }
-          if (snapshot.hasError) return const ErrorView(message: Ku.notAllowed);
-          final users = snapshot.data ?? [];
-          if (users.isEmpty) return const EmptyState();
+      onRefresh: () async {
+        ref.invalidate(adminUsersProvider);
+        try {
+          await ref.read(adminUsersProvider.future);
+        } on Object {
+          // Rendered as an error state below.
+        }
+      },
+      child: users.when(
+        loading: () => const LoadingSkeleton(count: 5),
+        error: (error, _) => ErrorView.failure(
+          AppFailure.from(error),
+          onRetry: () => ref.invalidate(adminUsersProvider),
+        ),
+        data: (items) {
+          if (items.isEmpty) return const EmptyState();
           return Column(
-            children: users.map((user) {
-              return Card(
-                child: ListTile(
-                  leading: ProfileAvatar(profile: user),
-                  title: Text(
-                    user.displayName,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  subtitle: Text(
-                    '@${user.githubUsername}  ${_roleLabel(user.role)}',
-                    textDirection: TextDirection.ltr,
-                  ),
-                  trailing: OutlinedButton(
-                    onPressed: () => _ban(user, !user.isBanned),
-                    child: Text(user.isBanned ? 'لابردنی ڕاگرتن' : 'ڕاگرتن'),
+            children: [
+              for (final user in items)
+                Card(
+                  child: ListTile(
+                    leading: ProfileAvatar(profile: user),
+                    title: Text(
+                      user.resolvedDisplayName,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    subtitle: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            '@${user.githubUsername}',
+                            textDirection: TextDirection.ltr,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          user.role.label,
+                          style: const TextStyle(color: AppColors.muted),
+                        ),
+                      ],
+                    ),
+                    trailing: OutlinedButton(
+                      onPressed: () => _setBanned(
+                        context,
+                        ref,
+                        user,
+                        banned: !user.isBanned,
+                      ),
+                      style: user.isBanned
+                          ? null
+                          : OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.danger,
+                            ),
+                      child: Text(user.isBanned ? 'لابردنی ڕاگرتن' : 'ڕاگرتن'),
+                    ),
                   ),
                 ),
-              );
-            }).toList(),
+            ],
           );
         },
       ),
     );
   }
-}
-
-String _roleLabel(String role) {
-  return switch (role) {
-    'admin' => 'بەڕێوەبەر',
-    'moderator' => 'چاودێر',
-    _ => 'بەکارهێنەر',
-  };
 }

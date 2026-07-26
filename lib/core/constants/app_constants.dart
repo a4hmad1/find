@@ -1,14 +1,38 @@
 import 'package:flutter/material.dart';
 
 class EnvKeys {
+  const EnvKeys._();
+
   static const supabaseUrl = 'SUPABASE_URL';
   static const supabaseAnonKey = 'SUPABASE_ANON_KEY';
 }
 
+/// OAuth redirect configuration.
+///
+/// [deepLinkScheme] and [deepLinkHost] must stay in sync with the
+/// `<data android:scheme=... android:host=.../>` intent filter in
+/// `android/app/src/main/AndroidManifest.xml` and the `CFBundleURLSchemes`
+/// entry in `ios/Runner/Info.plist`. The same URL must also be registered as an
+/// allowed redirect in the Supabase dashboard.
+class AuthConfig {
+  const AuthConfig._();
+
+  static const deepLinkScheme = 'krd.gov.find.find';
+  static const deepLinkHost = 'login-callback';
+  static const nativeRedirectUrl = '$deepLinkScheme://$deepLinkHost';
+
+  /// Scopes requested from GitHub. `user:email` is required so the profile
+  /// upsert can store an email address.
+  static const githubScopes = 'read:user user:email';
+}
+
 class AppRoutes {
+  const AppRoutes._();
+
   static const intro = '/intro';
   static const splash = '/splash';
   static const login = '/login';
+  static const loginCallback = '/login-callback';
   static const home = '/home';
   static const search = '/search';
   static const addPost = '/add-post';
@@ -28,9 +52,34 @@ class AppRoutes {
   static const terms = '/terms';
   static const help = '/help';
   static const offline = '/offline';
+
+  /// Routes that require a signed-in account. Visiting one while signed out
+  /// redirects to [login] rather than silently bouncing to [home].
+  static const accountOnly = <String>{
+    myPosts,
+    saved,
+    notifications,
+    admin,
+    adminPosts,
+    adminReports,
+    adminUsers,
+  };
+
+  /// Routes that additionally require a moderator or admin role.
+  static const moderatorOnly = <String>{
+    admin,
+    adminPosts,
+    adminReports,
+    adminUsers,
+  };
+
+  /// Query parameter carrying the route to return to after a successful login.
+  static const redirectParam = 'from';
 }
 
 class AppColors {
+  const AppColors._();
+
   static const primary = Color(0xFF116A7B);
   static const primarySoft = Color(0xFFE7F6F7);
   static const secondary = Color(0xFF2F9C74);
@@ -46,9 +95,16 @@ class AppColors {
   static const warning = Color(0xFFE59639);
   static const ink = Color(0xFF162321);
   static const muted = Color(0xFF687A76);
+
+  /// Hairline border used on cards and tiles. Previously this was written as
+  /// four slightly different literals scattered across the widget layer.
+  static const border = Color(0xFFE2E8F0);
+  static const borderDark = Color(0x14FFFFFF);
 }
 
 class DbTables {
+  const DbTables._();
+
   static const profiles = 'profiles';
   static const posts = 'posts';
   static const postImages = 'post_images';
@@ -61,60 +117,34 @@ class DbTables {
 }
 
 class DbSelects {
+  const DbSelects._();
+
   static const publicProfile =
       'id,auth_user_id,github_id,github_username,display_name,avatar_url,role,is_banned,created_at,updated_at';
   static const postWithImages = '*, post_images(*)';
   static const postWithImagesAndProfile =
       '*, post_images(*), profiles($publicProfile)';
+  static const messageWithSender = '*, profiles($publicProfile)';
+  static const savedPostJoin =
+      'posts(*, post_images(*), profiles($publicProfile))';
 }
 
-class DbValues {
-  static const found = 'found';
-  static const lost = 'lost';
-  static const stolen = 'stolen';
-  static const pending = 'pending';
-  static const approved = 'approved';
-  static const returned = 'returned';
-  static const closed = 'closed';
-  static const rejected = 'rejected';
+/// Limits enforced client-side so the user gets fast feedback. The
+/// authoritative limits are database constraints and RLS policies.
+class AppLimits {
+  const AppLimits._();
 
-  static const postTypeLabels = <String, String>{
-    found: 'دۆزراوە',
-    lost: 'ونبووە',
-    stolen: 'دزراوە',
-  };
-
-  static const statusLabels = <String, String>{
-    pending: 'چاوەڕوانە',
-    approved: 'پشتڕاستکراوە',
-    returned: 'گەڕێنراوەتەوە',
-    closed: 'داخراوە',
-    rejected: 'پەسەند نەکرا',
-  };
-
-  static const notificationLabels = <String, String>{
-    'new_message': 'نامەیەکی نوێت هەیە',
-    'post_approved': 'بابەتەکەت پشتڕاستکرایەوە',
-    'post_rejected': 'بابەتەکەت پەسەند نەکرا',
-    'post_returned': 'شتەکە گەڕێنراوەتەوە',
-    'similar_item': 'شتێکی هاوشێوە دۆزرایەوە',
-    'admin_notice': 'ئاگادارکردنەوەی بەڕێوەبەر',
-  };
+  static const maxPostImages = 5;
+  static const maxPostsPerDay = 10;
+  static const maxMessagesPerHour = 20;
+  static const recentPostsPageSize = 20;
+  static const urgentPostsPageSize = 8;
+  static const searchPageSize = 60;
+  static const similarMatchesPageSize = 8;
 }
 
 class AppLists {
-  static const postTypes = <String>[
-    DbValues.found,
-    DbValues.lost,
-    DbValues.stolen,
-  ];
-
-  static const statuses = <String>[
-    DbValues.pending,
-    DbValues.approved,
-    DbValues.returned,
-    DbValues.closed,
-  ];
+  const AppLists._();
 
   static const itemTypes = <String>[
     'مۆبایل',
@@ -159,15 +189,10 @@ class AppLists {
     'دووبارەیە',
     'هۆکاری تر',
   ];
-
-  static const sortOptions = <String>[
-    'نوێترین',
-    'کۆنترین',
-    'نزیکترین',
-    'گرنگترین',
-  ];
 }
 
 class StorageBuckets {
+  const StorageBuckets._();
+
   static const postImages = 'post-images';
 }
